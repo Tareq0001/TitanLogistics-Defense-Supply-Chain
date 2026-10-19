@@ -1,0 +1,46 @@
+name: Defense Logistics OR & CBM+ CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  typescript-or-suite:
+    name: TypeScript CVRP & Weibull CBM+ Suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm install
+      - name: Typecheck & Unit Tests
+        run: npm test
+
+  cpp17-milp-solver:
+    name: C++17 MILP & 3D Airlift Solver
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile C++17 Defense Logistics Solver
+        run: |
+          mkdir -p build
+          g++ -std=c++17 -O3 -Wall -Wextra cpp_solver/milp_convoy_optimizer.cpp -o build/milp_convoy_optimizer
+      - name: Execute Theater Sustainment Benchmark
+        run: ./build/milp_convoy_optimizer --benchmark
+
+  python-monte-carlo-sim:
+    name: Python Stochastic Theater Sustainment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Scientific Stack
+        run: pip install -r python_or/requirements.txt
+      - name: Run Monte Carlo Combat Consumption & Survival Analysis
+        run: python python_or/monte_carlo_theater_sim.py --iterations 1000

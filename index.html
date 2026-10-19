@@ -101,12 +101,12 @@
             <div class="absolute top-4 left-4 z-20 glass-logistics p-3 rounded-xl border border-sky-500/40 max-w-xs space-y-2.5">
                 <div class="flex justify-between items-center text-xs font-bold text-sky-400">
                     <span id="txtRoutingTitle"><i class="fa-solid fa-route mr-1"></i> GRAPH RESUPPLY ROUTER</span>
-                    <span class="text-[9px] text-slate-400 font-mono">DIJKSTRA OPT</span>
+                    <span class="text-[9px] text-slate-400 font-mono">CVRP + A*</span>
                 </div>
                 <div class="text-[11px] font-mono space-y-1 text-slate-300">
                     <div>Origin: <span class="text-sky-300 font-bold">Central Supply Depot (Riyadh)</span></div>
-                    <div>Destination: <span class="text-amber-400 font-bold">Forward Operating Base (FOB Alpha)</span></div>
-                    <div>Route Safety: <span class="text-emerald-400 font-bold">100% (Air Defense Escort)</span></div>
+                    <div>Destination: <span class="text-amber-400 font-bold">FOB Alpha (Northern Axis)</span></div>
+                    <div>A2/AD SAM Avoidance: <span class="text-emerald-400 font-bold">ACTIVE (P_kill &lt; 0.05)</span></div>
                 </div>
                 <button id="dispatchConvoyBtn" class="w-full py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition flex items-center justify-center space-x-1">
                     <i class="fa-solid fa-truck-fast"></i>
@@ -192,296 +192,19 @@
                     <button id="clearLogsBtn" class="text-[10px] text-slate-500 hover:text-slate-300">CLEAR</button>
                 </div>
                 <div id="logisticsLogList" class="flex-1 overflow-y-auto space-y-1.5 text-[11px] font-mono pr-1 text-slate-300">
-                    <div class="p-1 rounded bg-black/40 border-l-2 border-emerald-500"><span class="text-slate-500">16:00:10</span> [SUPPLY] Convoy Echo-4 arrived at FOB North with 120,000L JP-8.</div>
-                    <div class="p-1 rounded bg-black/40 border-l-2 border-sky-500"><span class="text-slate-500">16:01:25</span> [MAINT] M1A2S Turbine engine overhaul completed in 4.2 hours.</div>
-                    <div class="p-1 rounded bg-black/40 border-l-2 border-amber-500"><span class="text-slate-500">16:02:40</span> [INVENTORY] Automated PO generated for F-15 APG-63 radar spares.</div>
                 </div>
             </div>
 
             <!-- Standards Stamp -->
             <div class="pt-2 border-t border-slate-800 text-[10px] text-slate-500 flex justify-between items-center">
                 <span>Eng. Tareq Aboushi</span>
-                <span class="text-sky-500 font-mono">Defense Supply Chain</span>
+                <span class="text-sky-500 font-mono">TitanLogistics Operations Research Engine</span>
             </div>
         </div>
 
     </div>
 
-    <!-- 3D Logistics Map & Convoy Engine -->
-    <script>
-        const I18N = {
-            en: {
-                subDesc: "Strategic Military Supply Chain, Combat Fleet Readiness & Predictive Maintenance Digital Twin",
-                routingTitle: "GRAPH RESUPPLY ROUTER",
-                dispatch: "DISPATCH RESUPPLY CONVOY",
-                gaugeTitle: "COMBAT FLEET READINESS (Ao)",
-                weibullTitle: "WEIBULL FAILURE PREDICTOR (RUL)",
-                logTitle: "TACTICAL SUPPLY DISPATCH LOG"
-            },
-            ar: {
-                subDesc: "التوأم الرقمي لسلاسل الإمداد العسكرية وجاهزية الأساطيل القتالية والصيانة التنبؤية",
-                routingTitle: "خوارزمية مسارات قوافل الإمداد (Dijkstra)",
-                dispatch: "تسيير قافلة إمداد عسكرية",
-                gaugeTitle: "مؤشر الجاهزية القتالية للأسطول (Ao)",
-                weibullTitle: "نموذج وايبول للتنبؤ بالأعطال والعمر التشغيلي (RUL)",
-                logTitle: "سجل عمليات النقل والإمداد التكتيكي"
-            }
-        };
-
-        let currentLang = 'en';
-
-        // Sound Synthesis (Web Audio API)
-        let audioCtx = null;
-        let isAudioMuted = true;
-
-        function initAudio() {
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-
-        function playDispatchChime() {
-            if (isAudioMuted || !audioCtx) return;
-            const now = audioCtx.currentTime;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(520, now);
-            osc.frequency.setValueAtTime(780, now + 0.12);
-            gain.gain.setValueAtTime(0.2, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start(now);
-            osc.stop(now + 0.3);
-        }
-
-        // Three.js Logistics Network Scene
-        let scene, camera, renderer, controls;
-        let depots = [], convoys = [];
-        let routeLines = [];
-
-        function initThree() {
-            const container = document.getElementById('threeContainer');
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x020617);
-            scene.fog = new THREE.FogExp2(0x020617, 0.008);
-
-            camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 2000);
-            camera.position.set(0, 50, 70);
-
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(container.clientWidth, container.clientHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.shadowMap.enabled = true;
-            container.appendChild(renderer.domElement);
-
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
-
-            // Lights
-            scene.add(new THREE.AmbientLight(0x38bdf8, 0.5));
-            const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-            sun.position.set(40, 80, 50);
-            scene.add(sun);
-
-            // Ground Logistics Plane
-            const ground = new THREE.Mesh(new THREE.PlaneGeometry(240, 240), new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9 }));
-            ground.rotation.x = -Math.PI / 2;
-            scene.add(ground);
-
-            const grid = new THREE.GridHelper(240, 24, 0x0284c7, 0x1e293b);
-            scene.add(grid);
-
-            // Logistics Hub Depots
-            buildLogisticsHubs();
-
-            window.addEventListener('resize', onWindowResize);
-            drawWeibull();
-            animate();
-        }
-
-        function buildLogisticsHubs() {
-            const hubCoords = [
-                { x: 0, z: 0, label: "CENTRAL DEPOT (RIYADH)", isMain: true },
-                { x: -45, z: -30, label: "FOB ALPHA", isMain: false },
-                { x: 50, z: -25, label: "FOB BRAVO", isMain: false },
-                { x: -35, z: 40, label: "AIRBASE CHARLIE", isMain: false },
-                { x: 40, z: 35, label: "NAVAL BASE DELTA", isMain: false }
-            ];
-
-            const mainMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.8 });
-            const fobMat = new THREE.MeshStandardMaterial({ color: 0x10b981, metalness: 0.7 });
-
-            hubCoords.forEach((h, idx) => {
-                const mesh = new THREE.Mesh(
-                    new THREE.CylinderGeometry(h.isMain ? 4 : 2.5, h.isMain ? 4.5 : 2.8, 2, 8),
-                    h.isMain ? mainMat : fobMat
-                );
-                mesh.position.set(h.x, 1, h.z);
-                scene.add(mesh);
-                depots.push(mesh);
-
-                // Connect Routes from Central Depot
-                if (!h.isMain) {
-                    const points = [new THREE.Vector3(0, 0.5, 0), new THREE.Vector3(h.x, 0.5, h.z)];
-                    const geom = new THREE.BufferGeometry().setFromPoints(points);
-                    const line = new THREE.Line(geom, new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.5 }));
-                    scene.add(line);
-                    routeLines.push({ start: points[0], end: points[1] });
-                }
-            });
-
-            // Initial Moving Convoys (Pulsing glowing boxes)
-            for (let i = 0; i < 4; i++) {
-                spawnConvoy(i);
-            }
-        }
-
-        function spawnConvoy(routeIdx) {
-            const route = routeLines[routeIdx % routeLines.length];
-            const convoyMesh = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 3.5), new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xb45309 }));
-            scene.add(convoyMesh);
-            convoys.push({ mesh: convoyMesh, start: route.start, end: route.end, t: Math.random() });
-        }
-
-        function onWindowResize() {
-            const container = document.getElementById('threeContainer');
-            camera.aspect = container.clientWidth / container.clientHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(container.clientWidth, container.clientHeight);
-        }
-
-        // Weibull Canvas
-        const weibullCanvas = document.getElementById('weibullCanvas');
-        const wCtx = weibullCanvas.getContext('2d');
-
-        function drawWeibull() {
-            wCtx.fillStyle = '#020617';
-            wCtx.fillRect(0, 0, weibullCanvas.width, weibullCanvas.height);
-
-            wCtx.strokeStyle = '#38bdf8';
-            wCtx.lineWidth = 1.5;
-            wCtx.beginPath();
-
-            const pts = 80;
-            const step = weibullCanvas.width / pts;
-
-            // Weibull PDF f(t) = (beta/eta) * (t/eta)^(beta-1) * exp(-(t/eta)^beta) with beta=2.4
-            for (let i = 0; i < pts; i++) {
-                const t = i / 30;
-                const pdf = (2.4 / 1.5) * Math.pow(t / 1.5, 1.4) * Math.exp(-Math.pow(t / 1.5, 2.4));
-                const y = weibullCanvas.height - 10 - pdf * 75;
-                if (i === 0) wCtx.moveTo(0, y);
-                else wCtx.lineTo(i * step, y);
-            }
-            wCtx.stroke();
-        }
-
-        function animate() {
-            requestAnimationFrame(animate);
-            controls.update();
-
-            // Animate Convoys along route lines
-            convoys.forEach(c => {
-                c.t += 0.003;
-                if (c.t > 1) c.t = 0;
-                c.mesh.position.lerpVectors(c.start, c.end, c.t);
-                c.mesh.position.y = 1.2;
-                c.mesh.lookAt(c.end.x, 1.2, c.end.z);
-            });
-
-            renderer.render(scene, camera);
-        }
-
-        // Log Helper
-        function addLog(msg, type = 'info') {
-            const list = document.getElementById('logisticsLogList');
-            const now = new Date().toTimeString().split(' ')[0];
-            const div = document.createElement('div');
-            const borderCol = type === 'alert' ? 'border-rose-500' : (type === 'warn' ? 'border-amber-500' : 'border-sky-500');
-            div.className = `p-1 rounded bg-black/40 border-l-2 ${borderCol}`;
-            div.innerHTML = `<span class="text-slate-500">${now}</span> ${msg}`;
-            list.prepend(div);
-            if (list.children.length > 25) list.removeChild(list.lastChild);
-        }
-
-        // Dispatch Convoy
-        document.getElementById('dispatchConvoyBtn').addEventListener('click', () => {
-            initAudio();
-            playDispatchChime();
-            spawnConvoy(Math.floor(Math.random() * routeLines.length));
-            addLog("[DISPATCH] Heavy Resupply Convoy Sierra-7 cleared for departure. ETA 03:15 hrs.", "info");
-        });
-
-        // Fleet Category Switcher
-        document.getElementById('catArmorBtn').addEventListener('click', () => {
-            document.getElementById('txtAoMetric').innerText = "92.4% (368 / 398 Units)";
-            document.getElementById('barAo').style.width = "92.4%";
-            document.getElementById('valMtbf').innerText = "480 Operating Hrs";
-            document.getElementById('valMttr').innerText = "39.5 Repair Hrs";
-            setActiveCat('catArmorBtn');
-        });
-        document.getElementById('catAirBtn').addEventListener('click', () => {
-            document.getElementById('txtAoMetric').innerText = "88.6% (142 / 160 Aircraft)";
-            document.getElementById('barAo').style.width = "88.6%";
-            document.getElementById('valMtbf').innerText = "320 Flight Hrs";
-            document.getElementById('valMttr').innerText = "41.0 Repair Hrs";
-            setActiveCat('catAirBtn');
-        });
-        document.getElementById('catNavalBtn').addEventListener('click', () => {
-            document.getElementById('txtAoMetric').innerText = "95.0% (19 / 20 Vessels)";
-            document.getElementById('barAo').style.width = "95.0%";
-            document.getElementById('valMtbf').innerText = "1,200 Steaming Hrs";
-            document.getElementById('valMttr').innerText = "63.2 Repair Hrs";
-            setActiveCat('catNavalBtn');
-        });
-
-        function setActiveCat(id) {
-            ['catArmorBtn', 'catAirBtn', 'catNavalBtn'].forEach(b => {
-                const elem = document.getElementById(b);
-                if (b === id) {
-                    elem.className = "px-2.5 py-1 text-xs font-semibold rounded bg-sky-600 text-white shadow-md flex items-center space-x-1";
-                } else {
-                    elem.className = "px-2.5 py-1 text-xs font-semibold rounded bg-slate-800 text-slate-300 hover:text-sky-300 flex items-center space-x-1";
-                }
-            });
-        }
-
-        // Reset Cam
-        document.getElementById('resetCamBtn').addEventListener('click', () => {
-            camera.position.set(0, 50, 70);
-            controls.target.set(0, 0, 0);
-        });
-
-        // Sound Toggle
-        document.getElementById('soundBtn').addEventListener('click', () => {
-            initAudio();
-            isAudioMuted = !isAudioMuted;
-            document.getElementById('soundIcon').className = isAudioMuted ? "fa-solid fa-volume-xmark" : "fa-solid fa-volume-high text-sky-400";
-        });
-
-        // Clear Logs
-        document.getElementById('clearLogsBtn').addEventListener('click', () => {
-            document.getElementById('logisticsLogList').innerHTML = '';
-        });
-
-        // Language toggle
-        document.getElementById('langToggleBtn').addEventListener('click', () => {
-            currentLang = currentLang === 'en' ? 'ar' : 'en';
-            document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
-            document.getElementById('langToggleBtn').innerText = currentLang === 'ar' ? 'English' : 'عربي';
-
-            const t = I18N[currentLang];
-            document.getElementById('subHeaderDesc').innerText = t.subDesc;
-            document.getElementById('txtRoutingTitle').innerHTML = `<i class="fa-solid fa-route mr-1"></i> ${t.routingTitle}`;
-            document.getElementById('txtDispatch').innerText = t.dispatch;
-            document.getElementById('gaugeTitle').innerText = t.gaugeTitle;
-            document.getElementById('weibullTitle').innerText = t.weibullTitle;
-            document.getElementById('logTitle').innerText = t.logTitle;
-        });
-
-        // Init
-        initThree();
-    </script>
+    <!-- Modular TypeScript Application Entrypoint -->
+    <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

@@ -1,0 +1,39 @@
+{
+  "name": "titan-logistics-defense-supply-chain",
+  "version": "2.4.0",
+  "description": "Strategic Defense Supply Chain Operations Research, CBM+ Weibull Predictive Maintenance & Tactical Convoy Optimization Engine",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build:cpp": "g++ -std=c++17 -O3 cpp_solver/milp_convoy_optimizer.cpp -o build/milp_convoy_optimizer",
+    "sim:python": "python python_or/monte_carlo_theater_sim.py"
+  },
+  "keywords": [
+    "operations-research",
+    "defense-logistics",
+    "cvrp",
+    "astar-pathfinding",
+    "weibull-reliability",
+    "cbm-plus",
+    "predictive-maintenance",
+    "kalman-filter",
+    "nato-supply-chain",
+    "merkle-tree"
+  ],
+  "author": "Eng. Tareq Aboushi (Tareq0001)",
+  "license": "MIT",
+  "dependencies": {
+    "three": "^0.128.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/three": "^0.128.0",
+    "typescript": "^5.4.2",
+    "vite": "^5.1.6",
+    "vitest": "^1.4.0"
+  }
+}
